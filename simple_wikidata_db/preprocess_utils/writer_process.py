@@ -5,10 +5,10 @@ from typing import Dict, Any, List
 import time
 import ujson
 
-TABLE_NAMES = [
-    'labels', 'descriptions', 'aliases', 'external_ids', 'entity_values', 'qualifiers', 'wikipedia_links', 'entity_rels'
-]
 
+TABLE_NAMES = [
+    "entities", "properties"
+]
 
 class Table:
     def __init__(self, path: Path, batch_size: int, table_name: str):

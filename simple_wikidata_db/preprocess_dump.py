@@ -49,6 +49,7 @@ def main():
     if args.num_lines_in_dump <= 0:
         print("Counting lines")
         total_num_lines = count_lines(input_file, max_lines_to_read)
+        print(f"Done! counting {total_num_lines} lines")
     else:
         total_num_lines = args.num_lines_in_dump
 

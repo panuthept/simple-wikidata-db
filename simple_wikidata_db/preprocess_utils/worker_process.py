@@ -41,48 +41,39 @@ def process_mainsnak(data, language_id):
 
 
 def process_json(obj, language_id="en"):
-    out_data = defaultdict(list)
-    # skip properties
     if obj['type'] == 'property':
-        return {}
+        type = 'properties'
+    else:
+        type = 'entities'
+    
     id = obj['id']  # The canonical ID of the entity.
+
     # extract labels
+    label = None
     if language_id in obj['labels']:
         label = obj['labels'][language_id]['value']
-        out_data['labels'].append({
-            'qid': id,
-            'label': label
-        })
-        out_data['aliases'].append({
-            'qid': id,
-            'alias': label
-        })
 
     # extract description
+    description = None
     if language_id in obj['descriptions']:
         description = obj['descriptions'][language_id]['value']
-        out_data['descriptions'].append({
-            'qid': id,
-            'description': description,
-        })
 
     # extract aliases
+    aliases = set([label])
     if language_id in obj['aliases']:
         for alias in obj['aliases'][language_id]:
-            out_data['aliases'].append({
-                'qid': id,
-                'alias': alias['value'],
-            })
+            aliases.add(alias['value'])
 
     # extract english wikipedia sitelink -- we just add this to the external links table
-    if f'{language_id}wiki' in obj['sitelinks']:
-        sitelink = obj['sitelinks'][f'{language_id}wiki']['title']
-        out_data['wikipedia_links'].append({
-            'qid': id,
-            'wiki_title': sitelink
-        })
+    wikipedia_title = None
+    if 'sitelinks' in obj and f'{language_id}wiki' in obj['sitelinks']:     # property does not have sitelinks
+        wikipedia_title = obj['sitelinks'][f'{language_id}wiki']['title']
 
     # extract claims and qualifiers
+    entity_rels  = []
+    external_ids = []
+    entity_values = []
+    qualifiers = []
     for property_id in obj['claims']:
         for claim in obj['claims'][property_id]:
             if not claim['mainsnak']['snaktype'] == 'value':
@@ -95,31 +86,13 @@ def process_json(obj, language_id="en"):
                 continue
 
             if datatype == 'wikibase-item':
-                out_data['entity_rels'].append({
-                    'claim_id': claim_id,
-                    'qid': id,
-                    'property_id': property_id,
-                    'value': value
-                })
+                entity_rels.append({"claim_id": claim_id, "property_id": property_id, "value": value})
             elif datatype == 'external-id':
-                out_data['external_ids'].append({
-                    'claim_id': claim_id,
-                    'qid': id,
-                    'property_id': property_id,
-                    'value': value
-                })
+                external_ids.append({"claim_id": claim_id, "property_id": property_id, "value": value})
             else:
-                out_data['entity_values'].append({
-                    'claim_id': claim_id,
-                    'qid': id,
-                    'property_id': property_id,
-                    'value': value
-                })
+                entity_values.append({"claim_id": claim_id, "property_id": property_id, "value": value})
                 if property_id in ALIAS_PROPERTIES:
-                    out_data['aliases'].append({
-                        'qid': id,
-                        'alias': value,
-                    })
+                    aliases.add(value)
 
             # get qualifiers
             if 'qualifiers' in claim:
@@ -131,14 +104,25 @@ def process_json(obj, language_id="en"):
                         value = process_mainsnak(qualifier, language_id)
                         if value is None:
                             continue
-                        out_data['qualifiers'].append({
+                        qualifiers.append({
                             'qualifier_id': qualifier_id,
                             'claim_id': claim_id,
                             'property_id': qualifier_property,
                             'value': value
                         })
 
-    return dict(out_data)
+    data = {
+        "qid": id,
+        "label": label,
+        "alias": list(aliases),
+        "description": description,
+        "wikipedia_title": wikipedia_title,
+        "entity_rels": entity_rels,
+        "external_ids": external_ids,
+        "entity_values": entity_values,
+        "qualifiers": qualifiers,
+    }
+    return {type: [data]}
 
 
 def process_data(language_id: str, work_queue: Queue, out_queue: Queue):
